@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Importação do Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
@@ -26,9 +26,10 @@ class MyApp extends StatelessWidget {
 }
 
 class ImageData {
-  File imageFile;
-  Position? position;
-  String? imageUrl;
+  //conjunto de dados da imagem
+  File imageFile; //armazena o arquivo de imagem
+  Position? position; //armazena a informação da latitude e longitude
+  String? imageUrl; //armazena a URL da imagem apos o upload para o Firebase
 
   ImageData({required this.imageFile, this.position, this.imageUrl});
 }
@@ -42,12 +43,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  // ignore: prefer_final_fields
   List<ImageData> _imageDataList = [];
   final ImagePicker _picker = ImagePicker();
   bool isUploading = false;
 
-  // Solicita permissão para acessar a localização
   Future<bool> _requestLocationPermission() async {
+    //pede a permissão da localização do usuário
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -56,74 +58,91 @@ class _MyHomePageState extends State<MyHomePage> {
         permission == LocationPermission.whileInUse;
   }
 
-  // Obtém a localização atual do usuário
   Future<Position?> _getCurrentLocation() async {
+    //pega a localização
     bool hasPermission = await _requestLocationPermission();
     if (!hasPermission) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permissão de localização negada')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permissão de localização negada')),
+        );
+      }
       return null;
     }
 
     try {
       return await Geolocator.getCurrentPosition();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao obter localização: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao obter localização: $e')),
+        );
+      }
       return null;
     }
   }
 
-  // Pega imagem da galeria
   Future<void> _pickImageFromGallery() async {
+    //selecionar imagem da galeria
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.gallery,
     );
     if (pickedFile != null) {
       Position? position = await _getCurrentLocation();
-      setState(() {
-        _imageDataList.add(
-          ImageData(imageFile: File(pickedFile.path), position: position),
-        );
-      });
+      if (mounted) {
+        setState(() {
+          _imageDataList.add(
+            ImageData(imageFile: File(pickedFile.path), position: position),
+          );
+        });
+      }
     }
   }
 
-  // Tira foto com a câmera
   Future<void> _getImageFromCamera() async {
+    //tirar foto da camera
     final XFile? pickedFile = await _picker.pickImage(
       source: ImageSource.camera,
     );
     if (pickedFile != null) {
       Position? position = await _getCurrentLocation();
-      setState(() {
-        _imageDataList.add(
-          ImageData(imageFile: File(pickedFile.path), position: position),
-        );
-      });
+      if (mounted) {
+        setState(() {
+          _imageDataList.add(
+            ImageData(imageFile: File(pickedFile.path), position: position),
+          );
+        });
+      }
     }
   }
 
   void _removeImage(int index) {
-    setState(() {
-      _imageDataList.removeAt(index);
-    });
+    //remoção de imagem
+    if (mounted) {
+      setState(() {
+        _imageDataList.removeAt(index);
+      });
+    }
   }
 
   void _removeAllImages() {
-    setState(() {
-      _imageDataList.clear();
-    });
+    //remoção de todas as imagens
+    if (mounted) {
+      setState(() {
+        _imageDataList.clear();
+      });
+    }
   }
 
   Future<void> _uploadAllImages() async {
+    //fazer upload de todas as imagens
     if (_imageDataList.isEmpty) return;
 
-    setState(() {
-      isUploading = true;
-    });
+    if (mounted) {
+      setState(() {
+        isUploading = true;
+      });
+    }
 
     for (var imageData in _imageDataList) {
       try {
@@ -133,36 +152,38 @@ class _MyHomePageState extends State<MyHomePage> {
         );
         await ref.putFile(imageData.imageFile);
 
-        // Obter a URL da imagem após o upload
         final imageUrl = await ref.getDownloadURL();
 
-        // Agora, salvar a URL e a localização no Firestore
         await FirebaseFirestore.instance.collection('images').add({
           'imageUrl': imageUrl,
           'latitude': imageData.position?.latitude,
           'longitude': imageData.position?.longitude,
-          'timestamp':
-              FieldValue.serverTimestamp(), // Opcional: adicionar um timestamp
+          'timestamp': FieldValue.serverTimestamp(),
         });
 
-        // Atualizar o ImageData com a URL da imagem
-        setState(() {
-          imageData.imageUrl = imageUrl;
-        });
+        if (mounted) {
+          setState(() {
+            imageData.imageUrl = imageUrl;
+          });
+        }
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Erro no upload: $e")));
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Erro no upload: $e")));
+        }
       }
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Upload concluído!")));
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Upload concluído!")));
 
-    setState(() {
-      isUploading = false;
-    });
+      setState(() {
+        isUploading = false;
+      });
+    }
   }
 
   void _showImageDialog(BuildContext context, ImageData imageData) {
@@ -198,57 +219,94 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
+        centerTitle: true,
+        backgroundColor: Colors.deepPurpleAccent,
+        titleTextStyle: TextStyle(fontSize: 25),
         actions: <Widget>[
-          if (_imageDataList.isNotEmpty)
+          if (_imageDataList.isNotEmpty) // caso houver imagens carregadas
             IconButton(
+              // aparece esse icone que remove todas as imagens
               icon: const Icon(Icons.delete_sweep),
               tooltip: 'Remover Todas as Fotos',
               onPressed: _removeAllImages,
             ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  onPressed: _getImageFromCamera,
-                  child: const Text('Tirar Foto'),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _pickImageFromGallery,
-                  child: const Text('Escolher da Galeria'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isUploading ? null : _uploadAllImages,
-              child:
-                  isUploading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Upload Todas Imagens'),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 150,
-              child:
-                  _imageDataList.isEmpty
-                      ? const Text('Nenhuma foto tirada ainda.')
-                      : ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _imageDataList.length,
-                        itemBuilder: (BuildContext context, int index) {
-                          final imageData = _imageDataList[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8.0,
-                            ),
-                            child: Stack(
+      body: Container(
+        color: Colors.white,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    // botão para tirar foto
+                    onPressed: _getImageFromCamera,
+                    icon: Icon(Icons.camera_alt_outlined),
+                    label: const Text('Tirar Foto'),
+                    style: ButtonStyle(
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20), // espaçamento
+                  ElevatedButton.icon(
+                    // botão para scolher imagem da galeria
+                    onPressed: _pickImageFromGallery,
+                    icon: Icon(Icons.photo),
+                    label: const Text('Escolher da Galeria'),
+                    style: ButtonStyle(
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20), // espaçamento
+              ElevatedButton.icon(
+                // botão de upload de imagem e localização
+                onPressed:
+                    isUploading
+                        ? null
+                        : _uploadAllImages, //isUploading(true)=null; isUploading(false)=_uploadAllImages
+                icon:
+                    isUploading
+                        ? const SizedBox(
+                          //isUploading(true)
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Colors.white),
+                        )
+                        : const Icon(Icons.cloud_upload), //isUploading(false)
+                label: const Text('Upload Todas Imagens'),
+              ),
+              const SizedBox(height: 20), // espaçamento
+              SizedBox(
+                height: 300,
+                child:
+                    _imageDataList.isEmpty
+                        ? const Text(
+                          'Nenhuma foto tirada ainda.',
+                        ) //_imageDataList.isEmpty(true)
+                        : GridView.builder(
+                          //_imageDataList.isEmpty(false)
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 8.0,
+                              ),
+                          itemCount: _imageDataList.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final imageData = _imageDataList[index];
+                            return Stack(
                               children: [
                                 GestureDetector(
                                   onTap:
@@ -264,8 +322,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                         borderRadius: BorderRadius.zero,
                                         child: Image.file(
                                           imageData.imageFile,
-                                          width: 150,
-                                          height: 150,
                                           fit: BoxFit.cover,
                                         ),
                                       ),
@@ -284,12 +340,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ),
                                 ),
                               ],
-                            ),
-                          );
-                        },
-                      ),
-            ),
-          ],
+                            );
+                          },
+                        ),
+              ),
+            ],
+          ),
         ),
       ),
     );
