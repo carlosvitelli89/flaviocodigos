@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.flaviocodigos"  // Seu ID único de aplicação
-        minSdk = flutter.minSdkVersion
+        minSdk = 29
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
